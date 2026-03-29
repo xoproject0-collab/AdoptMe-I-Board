@@ -1,12 +1,11 @@
 import asyncio
 from aiogram import Bot, Dispatcher
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram.filters import Command
-from handlers.start import start
-from handlers.trade import trade_handler
-from services.value_service import load_all_pets, VALUE_UPDATE_INTERVAL
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from config import TOKEN
+from config import TOKEN, VALUE_UPDATE_INTERVAL
+from services.value_service import load_all_pets
+from handlers.start import start
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -19,15 +18,14 @@ async def main():
     scheduler.add_job(load_all_pets, "interval", minutes=VALUE_UPDATE_INTERVAL)
     scheduler.start()
 
-    # Загружаем value питомцев сразу
+    # Подгружаем value питомцев сразу
     await load_all_pets()
     print("[INFO] Value питомцев загружено.")
 
-    # Регистрируем обработчики
-    dp.message.register(start, Command("start"))
-    dp.callback_query.register(trade_handler)  # все кнопки трейда
+    # Регистрируем команду /start
+    dp.message.register(start, Command(commands=["start"]))
 
-    # Запуск бота
+    # Запуск polling
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
