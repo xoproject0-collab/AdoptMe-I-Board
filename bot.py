@@ -6,11 +6,11 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import TOKEN, VALUE_UPDATE_INTERVAL
 from services.value_service import load_all_pets
 from handlers.start import start
-from handlers.trade import create_trade, my_trades, show_trades
+from keyboards.menus import main_menu
+from handlers.trade import create_trade, show_trades, my_trades
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
-
 
 async def main():
     print("[INFO] Бот запускается...")
@@ -24,17 +24,16 @@ async def main():
     await load_all_pets()
     print("[INFO] Value питомцев загружено.")
 
-    # Регистрация хэндлеров
+    # Регистрируем команды
     dp.message.register(start, Command(commands=["start"]))
-    
-    # Фильтры на текст кнопок через lambda
-    dp.message.register(create_trade, lambda msg: msg.text == "➕ Создать трейд")
-    dp.message.register(show_trades, lambda msg: msg.text == "📋 Смотреть трейды")
-    dp.message.register(my_trades, lambda msg: msg.text == "📦 Мои трейды")
+
+    # Регистрируем кнопки
+    dp.message.register(create_trade, lambda msg: msg.text == "🟩 Создать трейд")
+    dp.message.register(show_trades, lambda msg: msg.text == "🟦 Смотреть трейды")
+    dp.message.register(my_trades, lambda msg: msg.text == "🟧 Мои трейды")
 
     # Запуск polling
     await dp.start_polling(bot)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
