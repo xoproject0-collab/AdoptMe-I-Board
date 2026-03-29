@@ -1,4 +1,4 @@
 aiogram==2.25.1
-aiohttp>=3.9.3
+aiohttp>=3.8.3,<3.9.0
 apscheduler>=3.9.1
 pydantic>=2.12.0
