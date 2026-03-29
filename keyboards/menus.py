@@ -1,4 +1,3 @@
-# keyboards/menus.py
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 def main_menu():
