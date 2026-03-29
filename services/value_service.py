@@ -1,43 +1,20 @@
 import aiohttp
+from bs4 import BeautifulSoup
+import asyncio
 
-# Словарь всех питомцев и их value
-pets = {}
-pet_list = []
+PET_VALUES = {}
 
 async def load_all_pets():
-    """Загружает всех питомцев с сайта Adopt Me"""
-    global pets, pet_list
-    page = 1
-    new_values = {}
-    headers = {
-        "User-Agent": "AdoptMeBot/1.0"
-    }
-
+    """Парсим сайт или API Adopt Me и сохраняем значения в PET_VALUES"""
+    url = "https://example.com/adoptme-pets"  # замени на реальный источник
     async with aiohttp.ClientSession() as session:
-        while True:
-            url = f"https://adoptmevalues.gg/api/v1/values?sortBy=position&limit=100&page={page}"
-            async with session.get(url, headers=headers) as r:
-                if r.status != 200:
-                    text = await r.text()
-                    print(f"[ERROR] Status: {r.status}, response: {text}")
-                    break
-                data = await r.json(content_type=None)
-            items = data.get("values", [])
-            if not items:
-                break
-            for pet in items:
-                name = pet["name"]
-                value = pet["value"]
-                new_values[name.lower()] = value
-            page += 1
+        async with session.get(url) as resp:
+            html = await resp.text()
+            soup = BeautifulSoup(html, "lxml")
+            for pet in soup.select(".pet-item"):
+                name = pet.select_one(".pet-name").text.strip().lower()
+                value = int(pet.select_one(".pet-value").text.strip())
+                PET_VALUES[name] = value
 
-    pets = new_values
-    pet_list = list(new_values.keys())
-    print(f"[INFO] Загружено питомцев: {len(pets)}")
-
-def get_value(name):
-    return pets.get(name.lower(), 0)
-
-def search_pet(text):
-    results = [p for p in pet_list if text.lower() in p]
-    return results[:10]
+async def get_value(pet_name: str):
+    return PET_VALUES.get(pet_name.lower(), 0)
