@@ -1,42 +1,50 @@
 import aiohttp
-from config import TOKEN, VALUE_UPDATE_INTERVAL
+import asyncio
 
+# Словарь всех питомцев и их value
 pets = {}
 pet_list = []
 
 async def load_all_pets():
+    """Загружает всех питомцев с публичного источника Adopt Me"""
     global pets, pet_list
-    page = 1
+    url = "https://adoptmevalues.gg/api/v1/values?sortBy=position&limit=500&page=1"  # публичный доступ
+
     new_values = {}
 
-    headers = {
-        "Authorization": f"Bearer {TOKEN}",
-        "User-Agent": "AdoptMeBot/1.0"
-    }
-
     async with aiohttp.ClientSession() as session:
-        while True:
-            url = f"https://adoptmevalues.gg/api/v1/values?sortBy=position&limit=100&page={page}"
-            async with session.get(url, headers=headers) as r:
+        try:
+            async with session.get(url, headers={"User-Agent": "AdoptMeBot/1.0"}) as r:
                 if r.status != 200:
-                    print(f"[ERROR] Status: {r.status}")
-                    break
+                    text = await r.text()
+                    print(f"[ERROR] Status: {r.status}, response: {text}")
+                    return
                 data = await r.json(content_type=None)
-            items = data.get("values", [])
-            if not items:
-                break
-            for pet in items:
-                name = pet["name"]
-                value = pet["value"]
-                new_values[name.lower()] = value
-            page += 1
+        except Exception as e:
+            print(f"[ERROR] Ошибка при запросе: {e}")
+            return
 
-    pets = new_values
-    pet_list = list(new_values.keys())
+    items = data.get("values", [])
+    for pet in items:
+        name = pet.get("name", "").lower()
+        value = pet.get("value", 0)
+        new_values[name] = value
+
+    pets.update(new_values)
+    pet_list.clear()
+    pet_list.extend(new_values.keys())
+
     print(f"[INFO] Загружено питомцев: {len(pets)}")
 
-def get_value(name):
+def get_value(name: str) -> int:
+    """Получить value питомца по имени"""
     return pets.get(name.lower(), 0)
 
-def search_pet(text):
-    return [p for p in pet_list if text.lower() in p][:10]
+def search_pet(text: str) -> list[str]:
+    """Поиск питомцев по подстроке"""
+    results = [p for p in pet_list if text.lower() in p]
+    return results[:10]
+
+def calculate_trade_value(pets_in_trade: list[dict]) -> int:
+    """Суммируем value всех питомцев в трейде"""
+    return sum(get_value(p["name"]) for p in pets_in_trade)
