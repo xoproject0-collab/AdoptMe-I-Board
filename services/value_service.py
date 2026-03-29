@@ -1,5 +1,5 @@
 import aiohttp
-from config import TOKEN
+from config import TOKEN, VALUE_UPDATE_INTERVAL
 
 pets = {}
 pet_list = []
@@ -8,6 +8,7 @@ async def load_all_pets():
     global pets, pet_list
     page = 1
     new_values = {}
+
     headers = {
         "Authorization": f"Bearer {TOKEN}",
         "User-Agent": "AdoptMeBot/1.0"
@@ -18,8 +19,7 @@ async def load_all_pets():
             url = f"https://adoptmevalues.gg/api/v1/values?sortBy=position&limit=100&page={page}"
             async with session.get(url, headers=headers) as r:
                 if r.status != 200:
-                    text = await r.text()
-                    print(f"[ERROR] Status: {r.status}, response: {text}")
+                    print(f"[ERROR] Status: {r.status}")
                     break
                 data = await r.json(content_type=None)
             items = data.get("values", [])
@@ -39,5 +39,4 @@ def get_value(name):
     return pets.get(name.lower(), 0)
 
 def search_pet(text):
-    results = [p for p in pet_list if text.lower() in p]
-    return results[:10]
+    return [p for p in pet_list if text.lower() in p][:10]
