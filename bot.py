@@ -1,15 +1,16 @@
 import asyncio
 from aiogram import Bot, Dispatcher
-from aiogram.filters import Command
+from aiogram.filters import Command, Text
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import TOKEN, VALUE_UPDATE_INTERVAL
 from services.value_service import load_all_pets
 from handlers.start import start
-from keyboards.menus import main_menu
+from handlers.trade import create_trade, my_trades, show_trades
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
+
 
 async def main():
     print("[INFO] Бот запускается...")
@@ -23,11 +24,15 @@ async def main():
     await load_all_pets()
     print("[INFO] Value питомцев загружено.")
 
-    # Регистрируем команду /start через фильтр Command
+    # Регистрация хэндлеров
     dp.message.register(start, Command(commands=["start"]))
+    dp.message.register(create_trade, Text(text="➕ Создать трейд"))
+    dp.message.register(show_trades, Text(text="📋 Смотреть трейды"))
+    dp.message.register(my_trades, Text(text="📦 Мои трейды"))
 
     # Запуск polling
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
