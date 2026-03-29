@@ -1,7 +1,7 @@
-from aiogram import types
+from aiogram.types import Message
 from keyboards.menus import main_menu
 
-async def start(message: types.Message):
+async def start(message: Message):
     await message.answer(
         "👋 Привет!\n\n"
         "С помощью этого бота ты можешь создавать трейды Adopt Me.\n"
