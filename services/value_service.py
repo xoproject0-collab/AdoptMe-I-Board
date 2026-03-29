@@ -1,20 +1,16 @@
 import aiohttp
-import asyncio
-from config import TOKEN  # убедись, что TOKEN берется из config
+from config import TOKEN
 
-# Словарь всех питомцев и их value
 pets = {}
 pet_list = []
 
 async def load_all_pets():
-    """Загружает всех питомцев с сайта Adopt Me"""
     global pets, pet_list
     page = 1
     new_values = {}
-
     headers = {
-        "Authorization": f"Bearer {TOKEN}",  # если API требует токен
-        "User-Agent": "AdoptMeBot/1.0"       # некоторые API требуют User-Agent
+        "Authorization": f"Bearer {TOKEN}",
+        "User-Agent": "AdoptMeBot/1.0"
     }
 
     async with aiohttp.ClientSession() as session:
@@ -25,7 +21,7 @@ async def load_all_pets():
                     text = await r.text()
                     print(f"[ERROR] Status: {r.status}, response: {text}")
                     break
-                data = await r.json(content_type=None)  # игнор mime-type
+                data = await r.json(content_type=None)
             items = data.get("values", [])
             if not items:
                 break
@@ -40,10 +36,8 @@ async def load_all_pets():
     print(f"[INFO] Загружено питомцев: {len(pets)}")
 
 def get_value(name):
-    """Получить value питомца по имени"""
     return pets.get(name.lower(), 0)
 
 def search_pet(text):
-    """Поиск питомцев по подстроке"""
     results = [p for p in pet_list if text.lower() in p]
     return results[:10]
