@@ -1,5 +1,4 @@
 def calculate_value(pets):
-    """Суммируем value всех питомцев"""
     return sum(p["value"] for p in pets)
 
 def trade_result(offer_value, want_value):
