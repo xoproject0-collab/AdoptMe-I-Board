@@ -1,4 +1,4 @@
-aiogram==2.25.1
-aiohttp>=3.8.3,<3.9.0
-apscheduler>=3.9.1
+aiogram==3.1.2   # фиксированная версия 3.x
+aiohttp>=3.9.3
+apscheduler
 pydantic>=2.12.0
