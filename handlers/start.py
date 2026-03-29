@@ -1,11 +1,15 @@
-# handlers/start.py
-from aiogram.types import Message
-from keyboards.menus import main_menu
+from aiogram import Router
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command
 
-async def start(message: Message):
-    await message.answer(
-        "👋 Привет!\n\n"
-        "С помощью этого бота ты можешь создавать трейды Adopt Me.\n"
-        "Выбирай питомцев, их качества (Fly, Ride, Neon, Mega) и публикуй трейды!",
-        reply_markup=main_menu()
-    )
+router = Router()
+
+def menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Создать трейд", callback_data="create_trade")],
+        [InlineKeyboardButton(text="📋 Смотреть трейды", callback_data="browse")]
+    ])
+
+@router.message(Command("start"))
+async def start_cmd(message: Message):
+    await message.answer("🐾 Adopt Me Trade Bot V2 — с полным парсером питомцев", reply_markup=menu())
