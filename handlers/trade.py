@@ -1,49 +1,43 @@
-from aiogram.types import Message
-from services.value_service import get_value
+from aiogram.types import CallbackQuery, Message
+from keyboards.menus import trade_options_menu
 from services.trade_service import calculate_value, trade_result
 
-# Списки трейдов
-trades = []  # все трейды
-my_trades_dict = {}  # трейды по пользователю
+# Словарь текущих трейдов (user_id -> список питомцев)
+user_trades = {}
+all_trades = []
 
-async def create_trade(message: Message):
-    # Простейший пример создания трейда
-    user_id = message.from_user.id
-    user_name = message.from_user.full_name
+async def trade_handler(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    data = callback.data
 
-    # Для простоты: берём фиктивного питомца
-    pets = [{"name": "Dog", "value": get_value("dog")}]
-
-    trade = {"user": user_name, "pets": pets}
-    trades.append(trade)
-    my_trades_dict.setdefault(user_id, []).append(trade)
-
-    total_value = calculate_value(pets)
-    await message.answer(
-        f"✅ Трейд создан!\nПитомцы: {[p['name'] for p in pets]}\n"
-        f"Суммарная value: {total_value}"
-    )
-
-async def show_trades(message: Message):
-    if not trades:
-        await message.answer("📋 Пока нет опубликованных трейдов.")
-        return
-    text = "📋 Список всех трейдов:\n\n"
-    for i, t in enumerate(trades, 1):
-        pet_names = [p['name'] for p in t['pets']]
-        value = calculate_value(t['pets'])
-        text += f"{i}. {t['user']} предлагает {pet_names} (Value: {value})\n"
-    await message.answer(text)
-
-async def my_trades(message: Message):
-    user_id = message.from_user.id
-    user_trades = my_trades_dict.get(user_id, [])
-    if not user_trades:
-        await message.answer("📦 У тебя пока нет трейдов.")
-        return
-    text = "📦 Твои трейды:\n\n"
-    for i, t in enumerate(user_trades, 1):
-        pet_names = [p['name'] for p in t['pets']]
-        value = calculate_value(t['pets'])
-        text += f"{i}. {pet_names} (Value: {value})\n"
-    await message.answer(text)
+    if data == "create_trade":
+        user_trades[user_id] = []
+        await callback.message.answer("➕ Добавь питомцев в трейд! Используй /add_pet <имя> <value>")
+        await callback.answer()
+    elif data == "view_trades":
+        if not all_trades:
+            await callback.message.answer("📋 Нет опубликованных трейдов.")
+        else:
+            msg = "📋 Все трейды:\n\n"
+            for t in all_trades:
+                msg += f"Пользователь {t['user']}:\n"
+                for p in t["pets"]:
+                    msg += f"- {p['name']} ({p['value']})\n"
+                msg += f"Value: {calculate_value(t['pets'])}\n\n"
+            await callback.message.answer(msg)
+        await callback.answer()
+    elif data == "my_trades":
+        user_trade = [t for t in all_trades if t["user"] == user_id]
+        if not user_trade:
+            await callback.message.answer("📦 У тебя нет трейдов.")
+        else:
+            msg = "👤 Мои трейды:\n\n"
+            for t in user_trade:
+                for p in t["pets"]:
+                    msg += f"- {p['name']} ({p['value']})\n"
+                msg += f"Value: {calculate_value(t['pets'])}\n\n"
+            await callback.message.answer(msg)
+        await callback.answer()
+    elif data.startswith("option_"):
+        await callback.message.answer(f"Выбрана опция: {data.split('_')[1].capitalize()}")
+        await callback.answer()
