@@ -1,5 +1,6 @@
 import asyncio
 from aiogram import Bot, Dispatcher
+from aiogram.filters import Command
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import TOKEN, VALUE_UPDATE_INTERVAL
@@ -10,20 +11,20 @@ from keyboards.menus import main_menu
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Регистрируем команду /start
-dp.message.register(start, commands=["start"])
-
 async def main():
     print("[INFO] Бот запускается...")
 
-    # Планировщик для обновления value — запускаем внутри event loop
+    # Планировщик для обновления value
     scheduler = AsyncIOScheduler()
     scheduler.add_job(load_all_pets, "interval", minutes=VALUE_UPDATE_INTERVAL)
     scheduler.start()
 
-    # Сразу подгружаем value питомцев
+    # Подгружаем value питомцев сразу
     await load_all_pets()
     print("[INFO] Value питомцев загружено.")
+
+    # Регистрируем команду /start через фильтр Command
+    dp.message.register(start, Command(commands=["start"]))
 
     # Запуск polling
     await dp.start_polling(bot)
