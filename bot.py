@@ -1,6 +1,7 @@
 import asyncio
 from aiogram import Bot, Dispatcher
-from aiogram.filters import Command, Text
+from aiogram.filters import Command
+from aiogram.filters.text import Text  # <- правильный импорт для фильтра текста
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import TOKEN, VALUE_UPDATE_INTERVAL
