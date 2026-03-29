@@ -10,18 +10,21 @@ from keyboards.menus import main_menu
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Планировщик для обновления value
-scheduler = AsyncIOScheduler()
-scheduler.add_job(load_all_pets, "interval", minutes=VALUE_UPDATE_INTERVAL)
-scheduler.start()
-
 # Регистрируем команду /start
 dp.message.register(start, commands=["start"])
 
 async def main():
     print("[INFO] Бот запускается...")
+
+    # Планировщик для обновления value — запускаем внутри event loop
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(load_all_pets, "interval", minutes=VALUE_UPDATE_INTERVAL)
+    scheduler.start()
+
+    # Сразу подгружаем value питомцев
     await load_all_pets()
     print("[INFO] Value питомцев загружено.")
+
     # Запуск polling
     await dp.start_polling(bot)
 
