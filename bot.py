@@ -1,7 +1,6 @@
 import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
-from aiogram.filters.text import Text  # <- правильный импорт для фильтра текста
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import TOKEN, VALUE_UPDATE_INTERVAL
@@ -27,9 +26,11 @@ async def main():
 
     # Регистрация хэндлеров
     dp.message.register(start, Command(commands=["start"]))
-    dp.message.register(create_trade, Text(text="➕ Создать трейд"))
-    dp.message.register(show_trades, Text(text="📋 Смотреть трейды"))
-    dp.message.register(my_trades, Text(text="📦 Мои трейды"))
+    
+    # Фильтры на текст кнопок через lambda
+    dp.message.register(create_trade, lambda msg: msg.text == "➕ Создать трейд")
+    dp.message.register(show_trades, lambda msg: msg.text == "📋 Смотреть трейды")
+    dp.message.register(my_trades, lambda msg: msg.text == "📦 Мои трейды")
 
     # Запуск polling
     await dp.start_polling(bot)
