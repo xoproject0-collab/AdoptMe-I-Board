@@ -1,12 +1,14 @@
-# start.py
 from aiogram import Router, types
+from aiogram.filters import Command
 
 router = Router()
 
-@router.message(commands=["start"])
+@router.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer(
-        "Привет! Я бот Adopt Me Board!\n"
-        "Используй /pets для просмотра питомцев\n"
-        "Используй /trade для трейда питомцев"
+    text = (
+        "Привет! Я бот Adopt Me Board.\n"
+        "Используй команды:\n"
+        "/pets — список всех питомцев\n"
+        "/trade — авто анализ трейдов"
     )
+    await message.answer(text)
