@@ -1,31 +1,34 @@
 import asyncio
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, F
 from aiogram.types import BotCommand
-from handlers import start, pets, trade
+from handlers import start, trade, pets
 
-API_TOKEN = "8585113754:AAEuFxy-rHCCAvvxOdLcCtKej5g82MvLU1E"
+TOKEN = "ВАШ_ТОКЕН_БОТА"
 
 async def main():
-    bot = Bot(token=API_TOKEN)
+    bot = Bot(token=TOKEN)
     dp = Dispatcher()
 
-    # Регистрируем роутеры
+    # Подключаем все роутеры (handlers)
     dp.include_router(start.router)
-    dp.include_router(pets.router)
     dp.include_router(trade.router)
-
-    # Настройка команд
-    await bot.set_my_commands([
-        BotCommand(command="start", description="Приветствие и помощь"),
-        BotCommand(command="pets", description="Список всех питомцев"),
-        BotCommand(command="trade", description="Анализ трейдов")
-    ])
+    dp.include_router(pets.router)
 
     # Загружаем питомцев
     await pets.load_all_pets()
 
+    # Настраиваем команды для бота
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Запустить бота"),
+        BotCommand(command="pets", description="Список всех питомцев"),
+        BotCommand(command="trade", description="Анализ трейдов")
+    ])
+
     print("🚀 Бот запущен")
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
 
 if __name__ == "__main__":
     asyncio.run(main())
