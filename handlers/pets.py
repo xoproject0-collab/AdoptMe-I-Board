@@ -1,122 +1,98 @@
 # pets.py
 import aiohttp
 import asyncio
-from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from aiogram import Router, types
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-router = Router()  # 🔹 создаём router для include_router
+router = Router()
 
 API_URL = "https://adoptmevalues.gg/api/v1/values"
-PAGE_LIMIT = 100
-UPDATE_INTERVAL = 600  # 10 минут
-ALL_PETS = {}  # сюда будем складывать всех питомцев
-FAVORITES = {}  # избранное: user_id -> list of pet_ids
+all_pets = []  # глобально храним всех питомцев
 
-headers = {
-    "User-Agent": "Mozilla/5.0",
-    "Accept": "application/json",
-}
-
-
-async def fetch_page(session, page: int):
-    try:
-        async with session.get(f"{API_URL}?sortBy=position&limit={PAGE_LIMIT}&page={page}", headers=headers) as resp:
-            if resp.status != 200:
-                print(f"Ошибка при загрузке страницы {page}: {resp.status}")
-                return []
-            try:
-                data = await resp.json()
-                return data.get("data", [])
-            except Exception as e:
-                print(f"Ошибка JSON страницы {page}: {e}")
-                return []
-    except Exception as e:
-        print(f"Ошибка запроса страницы {page}: {e}")
-        return []
-
+# --------------------------
+# Загрузка всех питомцев
+# --------------------------
+async def fetch_page(session, page, limit=100):
+    params = {"sortBy": "position", "limit": limit, "page": page}
+    async with session.get(API_URL, params=params) as resp:
+        if resp.content_type != "application/json":
+            raise ValueError(f"Unexpected mimetype: {resp.content_type}")
+        return await resp.json()
 
 async def load_all_pets():
-    global ALL_PETS
-    ALL_PETS = {}
-    page = 1
+    global all_pets
+    all_pets = []
     async with aiohttp.ClientSession() as session:
+        page = 1
         while True:
-            pets = await fetch_page(session, page)
-            if not pets:
+            data = await fetch_page(session, page)
+            pets_page = data.get("data", [])
+            if not pets_page:
                 break
-            for pet in pets:
-                pet_id = pet.get("id")
-                if pet_id:
-                    ALL_PETS[pet_id] = pet
+            all_pets.extend(pets_page)
             page += 1
-    print(f"✅ Загружено питомцев: {len(ALL_PETS)}")
+    print(f"✅ Загружено питомцев: {len(all_pets)}")
 
-
-def start_auto_update():
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(load_all_pets, "interval", seconds=UPDATE_INTERVAL)
-    scheduler.start()
-
-
-# ----------------------
-# 🔹 Хэндлеры для бота
-# ----------------------
-
-@router.message(F.text == "/pets")
-async def show_first_page(message: Message):
-    """Показываем первую страницу питомцев"""
-    if not ALL_PETS:
-        await message.answer("Питомцы ещё загружаются, подождите...")
-        return
-    pets_list = list(ALL_PETS.values())[:10]  # первая страница
+# --------------------------
+# Клавиатура питомцев (страницы + inline)
+# --------------------------
+def build_pets_keyboard(page=0, per_page=10):
     kb = InlineKeyboardMarkup(row_width=2)
-    for pet in pets_list:
-        kb.add(InlineKeyboardButton(pet["name"], callback_data=f"pet_{pet['id']}"))
-    await message.answer("Питомцы (страница 1):", reply_markup=kb)
+    start = page * per_page
+    end = start + per_page
+    for pet in all_pets[start:end]:
+        name = pet["name"]
+        kb.add(InlineKeyboardButton(text=name, callback_data=f"pet_{name}"))
+    # Страницы
+    if start > 0:
+        kb.add(InlineKeyboardButton("⬅️ Назад", callback_data=f"page_{page-1}"))
+    if end < len(all_pets):
+        kb.add(InlineKeyboardButton("➡️ Вперед", callback_data=f"page_{page+1}"))
+    return kb
 
+# --------------------------
+# Inline кнопки и поиск
+# --------------------------
+@router.message(commands=["pets"])
+async def show_pets(message: types.Message):
+    kb = build_pets_keyboard(page=0)
+    await message.answer("Список питомцев:", reply_markup=kb)
 
-@router.callback_query(F.data.startswith("pet_"))
-async def show_pet_page(call: CallbackQuery):
-    pet_id = call.data.split("_")[1]
-    pet = ALL_PETS.get(pet_id)
-    if not pet:
-        await call.message.edit_text("Питомец не найден 😢")
+@router.callback_query(lambda c: c.data and c.data.startswith("page_"))
+async def paginate_pets(call: types.CallbackQuery):
+    page = int(call.data.split("_")[1])
+    kb = build_pets_keyboard(page=page)
+    await call.message.edit_reply_markup(kb)
+
+@router.message()
+async def search_pet(message: types.Message):
+    query = message.text.lower()
+    results = [pet for pet in all_pets if query in pet["name"].lower()]
+    if not results:
+        await message.answer("Питомец не найден 😢")
         return
-    # Кнопки модификаторов
     kb = InlineKeyboardMarkup(row_width=2)
-    for mod in ["Fly", "Ride", "Neon", "Mega Neon"]:
-        kb.add(InlineKeyboardButton(mod, callback_data=f"mod_{pet_id}_{mod}"))
-    kb.add(InlineKeyboardButton("❤️ В избранное", callback_data=f"fav_{pet_id}"))
-    await call.message.edit_text(f"🐾 {pet['name']}\nЦена: {pet.get('value', '—')}", reply_markup=kb)
+    for pet in results[:10]:
+        kb.add(InlineKeyboardButton(text=pet["name"], callback_data=f"pet_{pet['name']}"))
+    await message.answer(f"Результаты поиска для: {query}", reply_markup=kb)
 
-
-@router.callback_query(F.data.startswith("fav_"))
-async def add_to_favorites(call: CallbackQuery):
-    user_id = call.from_user.id
-    pet_id = call.data.split("_")[1]
-    FAVORITES.setdefault(user_id, set()).add(pet_id)
-    await call.answer("Добавлено в избранное ❤️")
-
-
-@router.callback_query(F.data.startswith("mod_"))
-async def apply_modifier(call: CallbackQuery):
-    parts = call.data.split("_")
-    pet_id, mod = parts[1], parts[2]
-    pet = ALL_PETS.get(pet_id)
+# --------------------------
+# Детали питомца и модификаторы
+# --------------------------
+@router.callback_query(lambda c: c.data and c.data.startswith("pet_"))
+async def show_pet_details(call: types.CallbackQuery):
+    name = call.data.split("_", 1)[1]
+    pet = next((p for p in all_pets if p["name"] == name), None)
     if not pet:
-        await call.answer("Питомец не найден 😢")
+        await call.message.answer("Ошибка: питомец не найден")
         return
-    # Логика комбинирования модификаторов
-    mods = pet.get("mods", set())
-    mods.add(mod)
-    pet["mods"] = mods
-    await call.answer(f"{pet['name']} теперь с модификаторами: {', '.join(mods)}")
 
+    # Строим текст с модификаторами
+    modifiers = []
+    for mod in ["fly", "ride", "neon", "megaNeon"]:
+        if pet.get(mod):
+            modifiers.append(mod.capitalize())
+    mods_text = " | ".join(modifiers) if modifiers else "Нет модификаторов"
 
-# ----------------------
-# 🔹 Инициализация при старте
-# ----------------------
-async def init():
-    await load_all_pets()
-    start_auto_update()
+    text = f"🐾 <b>{pet['name']}</b>\n💰 Цена: {pet.get('value', 0)}\n🔧 Модификаторы: {mods_text}"
+    await call.message.answer(text)
