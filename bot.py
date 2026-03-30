@@ -5,6 +5,8 @@ from handlers import start, trade, pets
 
 BOT_TOKEN = "8585113754:AAEuFxy-rHCCAvvxOdLcCtKej5g82MvLU1E"
 
+# УБИВАЕТ старые подключения
+await bot.delete_webhook(drop_pending_updates=True)
 
 async def main():
     bot = Bot(token=BOT_TOKEN)
