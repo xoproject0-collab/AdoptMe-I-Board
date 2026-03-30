@@ -1,31 +1,67 @@
+# bot.py
 import asyncio
-import logging
 from aiogram import Bot, Dispatcher
+from aiogram.types import BotCommand
 from aiogram.fsm.storage.memory import MemoryStorage
-from config import TOKEN, UPDATE_INTERVAL
-from handlers import start, pets
-from services.value_service import load_all_pets
+from handlers import start, trade
+from handlers import pets  # новый pets.py
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-logging.basicConfig(level=logging.INFO)
+API_TOKEN = "ВАШ_ТОКЕН_БОТА"
+
+# --------------------------
+# Инициализация бота
+# --------------------------
+bot = Bot(token=API_TOKEN, parse_mode="HTML")
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
+
+# --------------------------
+# Подключение роутеров
+# --------------------------
+dp.include_router(start.router)  # старый функционал /start
+dp.include_router(trade.router)  # trade
+dp.include_router(pets.router)   # pets.py
+
+# --------------------------
+# Настройка команд бота
+# --------------------------
+async def set_commands():
+    commands = [
+        BotCommand(command="start", description="Запустить бота"),
+        BotCommand(command="trade", description="Начать трейд питомцев"),
+        BotCommand(command="profit", description="Посчитать профит/лосс")
+    ]
+    await bot.set_my_commands(commands)
+
+# --------------------------
+# Планировщик для обновления питомцев каждые 10 минут
+# --------------------------
+scheduler = AsyncIOScheduler()
 
 async def main():
-    bot = Bot(token=TOKEN)
-    dp = Dispatcher(storage=MemoryStorage())
+    await set_commands()
+    # --------------------------
+    # Загружаем всех питомцев перед стартом
+    # --------------------------
+    try:
+        await pets.load_all_pets()
+        print("✅ Все питомцы загружены")
+    except Exception as e:
+        print(f"Ошибка при загрузке питомцев: {e}")
 
-    dp.include_router(start.router)
-    dp.include_router(pets.router)
-
-    # Загружаем всех питомцев сразу
-    await load_all_pets()
-
-    # Автообновление value каждые 10 минут
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(load_all_pets, "interval", seconds=UPDATE_INTERVAL)
+    # Запускаем обновление каждые 10 минут
+    scheduler.add_job(pets.load_all_pets, "interval", minutes=10, id="load_all_pets")
     scheduler.start()
 
-    print("🚀 Бот запущен")
-    await dp.start_polling(bot)
+    # --------------------------
+    # Запуск polling
+    # --------------------------
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
