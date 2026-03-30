@@ -1,29 +1,66 @@
-
-
-import httpx
 from aiogram import Router
 from aiogram.types import Message
 from aiogram.filters import Command
 
+import aiohttp
+
 router = Router()
-pets_data = []
+
+ALL_PETS = []
+
+API_URL = "https://adoptmevalues.gg/api/v1/values?sortBy=position&limit=100&page="
+
 
 async def load_all_pets():
-    global pets_data
-    try:
-        async with httpx.AsyncClient(verify=False, timeout=10) as client:
-            resp = await client.get("https://adoptmevalues.gg/api/v1/values?sortBy=position&limit=100&page=1")
+    global ALL_PETS
+    ALL_PETS.clear()
 
-            if resp.status_code != 200:
-                raise Exception(f"HTTP {resp.status_code}")
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json"
+    }
 
-            data = resp.json()
+    page = 1
 
-            # достаём питомцев
-            pets_data = data.get("data", [])
+    async with aiohttp.ClientSession(headers=headers) as session:
+        while True:
+            url = API_URL + str(page)
 
-            print(f"Загружено питомцев: {len(pets_data)}")
+            try:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        print(f"Ошибка загрузки: HTTP {resp.status}")
+                        break
 
-    except Exception as e:
-        print(f"Ошибка при загрузке питомцев: {e}")
-        pets_data = []
+                    data = await resp.json()
+                    pets = data.get("data", [])
+
+                    if not pets:
+                        break
+
+                    ALL_PETS.extend(pets)
+                    print(f"Страница {page} загружена ({len(pets)})")
+
+                    page += 1
+
+            except Exception as e:
+                print("Ошибка при загрузке питомцев:", e)
+                break
+
+    print(f"Всего питомцев: {len(ALL_PETS)}")
+
+
+@router.message(Command("pets"))
+async def pets_command(message: Message):
+    if not ALL_PETS:
+        await message.answer("❌ Питомцы не загружены")
+        return
+
+    text = "🐾 Список питомцев:\n\n"
+
+    for pet in ALL_PETS[:20]:
+        text += f"• {pet.get('name')} ({pet.get('value', '?')})\n"
+
+    text += "\n...и еще много"
+
+    await message.answer(text)
