@@ -1,9 +1,12 @@
-from aiogram import Router
-from aiogram.types import Message
-from keyboards.main_keyboard import main_menu
+# start.py
+from aiogram import Router, types
 
 router = Router()
 
-@router.message()
-async def cmd_start(message: Message):
-    await message.answer("Привет! Добро пожаловать в Adopt Me трейдер бот 🚀", reply_markup=main_menu())
+@router.message(commands=["start"])
+async def cmd_start(message: types.Message):
+    await message.answer(
+        "Привет! Я бот Adopt Me Board!\n"
+        "Используй /pets для просмотра питомцев\n"
+        "Используй /trade для трейда питомцев"
+    )
