@@ -1,13 +1,10 @@
+# handlers/trade.py
 from aiogram import Router
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command
+from aiogram.types import Message
 
 router = Router()
 
-@router.message(commands=["trade"])
-async def trade_command(message: Message):
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    keyboard.add(
-        InlineKeyboardButton(text="Анализ всех трейдов", callback_data="analyze_all"),
-        InlineKeyboardButton(text="Добавить новый трейд", callback_data="add_trade"),
-    )
-    await message.answer("Выберите действие для трейдов:", reply_markup=keyboard)
+@router.message(Command("trade"))
+async def cmd_trade(message: Message):
+    await message.answer("Анализ трейдов: пока пример сообщения")
