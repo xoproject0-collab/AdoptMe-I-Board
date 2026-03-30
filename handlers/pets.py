@@ -18,7 +18,10 @@ async def load_all_pets():
     url = "https://adoptmevalues.gg/"
 
     headers = {
-        "User-Agent": "Mozilla/5.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://google.com"
     }
 
     import aiohttp
@@ -27,15 +30,19 @@ async def load_all_pets():
     try:
         async with aiohttp.ClientSession(headers=headers) as session:
             async with session.get(url) as resp:
+                if resp.status != 200:
+                    print("Ошибка при загрузке питомцев:", resp.status)
+                    return
+
                 html = await resp.text()
 
         soup = BeautifulSoup(html, "lxml")
 
-        cards = soup.find_all("div", class_="card")
+        cards = soup.select("div.card")
 
         for card in cards:
-            name = card.find("h3")
-            value = card.find("span")
+            name = card.select_one("h3")
+            value = card.select_one("span")
 
             if name:
                 ALL_PETS.append({
