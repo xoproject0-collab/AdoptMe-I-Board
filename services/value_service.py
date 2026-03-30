@@ -1,20 +1,27 @@
 import aiohttp
-from bs4 import BeautifulSoup
-import asyncio
+import json
+from pathlib import Path
 
-PET_VALUES = {}
+DATA_FILE = Path("data/pets.json")
+
+ALL_PETS = {}
 
 async def load_all_pets():
-    """Парсим сайт или API Adopt Me и сохраняем значения в PET_VALUES"""
-    url = "https://example.com/adoptme-pets"  # замени на реальный источник
+    global ALL_PETS
+    url = "https://adoptmevalues.gg/data.json"  # пример, нужно реальный API или парсер
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
-            html = await resp.text()
-            soup = BeautifulSoup(html, "lxml")
-            for pet in soup.select(".pet-item"):
-                name = pet.select_one(".pet-name").text.strip().lower()
-                value = int(pet.select_one(".pet-value").text.strip())
-                PET_VALUES[name] = value
+            data = await resp.json()
 
-async def get_value(pet_name: str):
-    return PET_VALUES.get(pet_name.lower(), 0)
+    pets = {}
+    for pet in data["pets"]:  # структура зависит от API сайта
+        category = pet["rarity"].lower()
+        pets.setdefault(category, []).append({
+            "name": pet["name"],
+            "value": pet["value"]
+        })
+
+    ALL_PETS = pets
+    # сохраняем кэш
+    DATA_FILE.parent.mkdir(exist_ok=True)
+    DATA_FILE.write_text(json.dumps(pets, ensure_ascii=False))
