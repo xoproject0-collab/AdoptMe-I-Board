@@ -18,3 +18,5 @@ lxml==6.0.2
 
 # Фильтры для aiogram
 magic-filter==1.0.12
+
+certifi==2026.3.29
