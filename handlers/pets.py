@@ -1,54 +1,51 @@
-from aiogram import Router, types
-from aiogram.filters import Command
-import asyncio
 import httpx
+from aiogram import Router, types
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 router = Router()
 
 ALL_PETS = []
 
-API_URL = "https://adoptmevalues.gg/api/v1/values?sortBy=position&limit=100&page={page}"
-
-async def fetch_pets():
-    page = 1
-    pets = []
-    async with httpx.AsyncClient(timeout=10) as client:
-        while True:
-            url = API_URL.format(page=page)
-            try:
-                resp = await client.get(url)
-                resp.raise_for_status()
-                data = resp.json()
-            except Exception as e:
-                print(f"Ошибка при загрузке питомцев: {e}")
-                break
-            if not data.get("data"):
-                break
-            pets.extend(data["data"])
-            page += 1
-    return pets
+API_URL = "https://adoptmevalues.gg/api/v1/values"
 
 async def load_all_pets():
     global ALL_PETS
-    ALL_PETS = await fetch_pets()
+    ALL_PETS = []
+    page = 1
+    while True:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{API_URL}?sortBy=position&limit=100&page={page}")
+            if resp.headers.get("content-type") != "application/json":
+                print(f"Ошибка при загрузке питомцев: {resp.status_code}, unexpected mimetype")
+                break
+            data = resp.json()
+            if not data:
+                break
+            ALL_PETS.extend(data)
+            page += 1
     print(f"Загружено питомцев: {len(ALL_PETS)}")
 
 # Команда /pets
-@router.message(Command("pets"))
-async def show_pets(message: types.Message):
+@router.message()
+async def pets_command(message: types.Message):
     if not ALL_PETS:
-        await message.answer("Питомцы ещё не загружены, попробуйте чуть позже.")
+        await message.answer("Питомцы еще не загружены, подождите минуту.")
         return
-    text = "Все питомцы:\n" + "\n".join([pet["name"] for pet in ALL_PETS])
-    await message.answer(text)
 
-# Можно добавить пагинацию, избранное, поиск и callback по клику на питомца
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    for pet in ALL_PETS[:20]:  # показываем первые 20
+        keyboard.add(
+            InlineKeyboardButton(text=pet["name"], callback_data=f"pet_{pet['id']}")
+        )
+    await message.answer("Выберите питомца:", reply_markup=keyboard)
+
+# Обработка клика на питомца
 @router.callback_query(lambda c: c.data and c.data.startswith("pet_"))
-async def show_pet_details(call: types.CallbackQuery):
-    pet_id = call.data.split("_")[1]
+async def pet_callback(query: types.CallbackQuery):
+    pet_id = query.data.split("_")[1]
     pet = next((p for p in ALL_PETS if str(p["id"]) == pet_id), None)
     if not pet:
-        await call.message.edit_text("Питомец не найден.")
+        await query.message.edit_text("Питомец не найден.")
         return
-    text = f"{pet['name']} — {pet.get('rarity', 'неизвестно')}"
-    await call.message.edit_text(text)
+    text = f"🐾 {pet['name']}\n💎 Цена: {pet.get('price', 'неизвестно')}"
+    await query.message.edit_text(text)
