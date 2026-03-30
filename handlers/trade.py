@@ -1,37 +1,34 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from services.value_service import ALL_PETS
 
 router = Router()
 
-user_trade = {}
+user_data = {}
 
-# === МЕНЮ ===
-def main_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Создать трейд", callback_data="create_trade")],
-        [InlineKeyboardButton(text="📊 Смотреть трейды", callback_data="watch_trades")],
-    ])
+MODIFIERS = ["F", "R", "N", "M"]
 
 
-# === СОЗДАНИЕ ===
+# === старт создания трейда ===
 @router.callback_query(F.data == "create_trade")
 async def create_trade(call: CallbackQuery):
-    user_trade[call.from_user.id] = {
+    user_data[call.from_user.id] = {
         "offer": [],
-        "want": []
+        "want": [],
+        "current": None,
+        "stage": "offer"
     }
 
     await call.message.edit_text(
-        "📦 Выбери питомца (что ТЫ даёшь):",
-        reply_markup=pets_keyboard(0)
+        "📦 Выбирай питомца (что ТЫ даёшь):",
+        reply_markup=get_pets_keyboard(0)
     )
 
 
-# === КНОПКИ ПИТОМЦЕВ ===
-def pets_keyboard(page):
-    per_page = 6
+# === список питомцев ===
+def get_pets_keyboard(page):
+    per_page = 5
     start = page * per_page
     end = start + per_page
 
@@ -52,52 +49,103 @@ def pets_keyboard(page):
 
     buttons.append(nav)
 
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+# === выбор питомца ===
+@router.callback_query(F.data.startswith("pet_"))
+async def select_pet(call: CallbackQuery):
+    pet_name = call.data.split("_")[1]
+
+    user_data[call.from_user.id]["current"] = {
+        "name": pet_name,
+        "mods": []
+    }
+
+    await call.message.edit_text(
+        f"⚙️ Выбери модификаторы для {pet_name}",
+        reply_markup=get_mod_keyboard()
+    )
+
+
+# === модификаторы ===
+def get_mod_keyboard():
+    buttons = []
+
+    for mod in MODIFIERS:
+        buttons.append([
+            InlineKeyboardButton(text=mod, callback_data=f"mod_{mod}")
+        ])
+
     buttons.append([
-        InlineKeyboardButton(text="➡️ К выбору WANT", callback_data="to_want")
+        InlineKeyboardButton(text="✅ Готово", callback_data="mod_done")
     ])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-# === ВЫБОР ПИТОМЦА ===
-@router.callback_query(F.data.startswith("pet_"))
-async def add_pet(call: CallbackQuery):
-    pet_name = call.data.split("_")[1]
+@router.callback_query(F.data.startswith("mod_"))
+async def add_mod(call: CallbackQuery):
+    mod = call.data.split("_")[1]
 
-    user_trade[call.from_user.id]["offer"].append(pet_name)
+    user_data[call.from_user.id]["current"]["mods"].append(mod)
 
-    await call.answer(f"Добавлен {pet_name}")
-
-
-# === СТРАНИЦЫ ===
-@router.callback_query(F.data.startswith("page_"))
-async def change_page(call: CallbackQuery):
-    page = int(call.data.split("_")[1])
-
-    await call.message.edit_reply_markup(
-        reply_markup=pets_keyboard(page)
-    )
+    await call.answer(f"Добавлен {mod}")
 
 
-# === WANT ===
+# === завершили модификаторы ===
+@router.callback_query(F.data == "mod_done")
+async def mod_done(call: CallbackQuery):
+    data = user_data[call.from_user.id]
+
+    pet = data["current"]
+
+    text = pet["name"] + "".join(pet["mods"])
+
+    if data["stage"] == "offer":
+        data["offer"].append(text)
+    else:
+        data["want"].append(text)
+
+    data["current"] = None
+
+    if data["stage"] == "offer":
+        await call.message.edit_text(
+            "➕ Добавлен! Теперь:\n\n"
+            "➡️ Добавь ещё или перейди дальше",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="➕ Добавить ещё", callback_data="create_trade")],
+                [InlineKeyboardButton(text="➡️ К WANT", callback_data="to_want")]
+            ])
+        )
+    else:
+        await call.message.edit_text(
+            "🎯 Добавлено!\n\n"
+            "Готово к публикации",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📢 Опубликовать", callback_data="publish")]
+            ])
+        )
+
+
+# === переход к WANT ===
 @router.callback_query(F.data == "to_want")
 async def to_want(call: CallbackQuery):
+    user_data[call.from_user.id]["stage"] = "want"
+
     await call.message.edit_text(
-        "🎯 Теперь выбери что ХОЧЕШЬ:",
-        reply_markup=pets_keyboard(0)
+        "🎯 Выбирай что ХОЧЕШЬ:",
+        reply_markup=get_pets_keyboard(0)
     )
 
 
-# === ПРОСМОТР ===
-@router.callback_query(F.data == "watch_trades")
-async def watch_trades(call: CallbackQuery):
-    data = user_trade.get(call.from_user.id)
-
-    if not data:
-        await call.message.answer("Нет трейдов")
-        return
+# === публикация ===
+@router.callback_query(F.data == "publish")
+async def publish(call: CallbackQuery):
+    data = user_data[call.from_user.id]
 
     await call.message.answer(
-        f"📦 Ты даёшь: {', '.join(data['offer'])}\n"
-        f"🎯 Хочешь: {', '.join(data['want'])}"
+        f"📢 ТРЕЙД ОПУБЛИКОВАН\n\n"
+        f"📦 Даю: {', '.join(data['offer'])}\n"
+        f"🎯 Хочу: {', '.join(data['want'])}"
     )
