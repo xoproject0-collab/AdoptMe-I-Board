@@ -1,7 +1,9 @@
 import httpx
 import certifi
+
 from aiogram import Router
 from aiogram.types import Message
+from aiogram.filters import Command   # ← ВОТ ЭТА СТРОКА ОБЯЗАТЕЛЬНА
 
 router = Router()
 pets_data = []
