@@ -1,20 +1,21 @@
 import asyncio
 from aiogram import Bot, Dispatcher
-from handlers import start, trade, pets  # pets добавлен
-
-API_TOKEN = "8585113754:AAEuFxy-rHCCAvvxOdLcCtKej5g82MvLU1E"
-
-async def main():
-    bot = Bot(token=API_TOKEN)
-    dp = Dispatcher()
 
 from handlers import start, trade
+import handlers.pets as pets  # сервис для питомцев
 
+BOT_TOKEN = "YOUR_TOKEN_HERE"
+
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+# Подключаем роутеры
 dp.include_router(start.router)
 dp.include_router(trade.router)
 
-    # Загружаем всех питомцев перед стартом
-    await pets.load_all_pets()
+async def main():
+    # Загружаем питомцев
+    await pets.load_all_pets()  # <- исправлен отступ
 
     print("🚀 Бот запущен")
     await dp.start_polling(bot)
