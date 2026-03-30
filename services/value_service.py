@@ -1,40 +1,36 @@
-import json
 import aiohttp
-import asyncio
+from bs4 import BeautifulSoup
 
-PETS_FILE = "data/pets.json"
+ALL_PETS = []
 
-async def fetch_all_pets():
-    """Загружаем всех питомцев со всех страниц API"""
-    pets = []
-    page = 1
-    limit = 100  # больше за один запрос
-    async with aiohttp.ClientSession() as session:
-        while True:
-            url = f"https://adoptmevalues.gg/api/v1/values?sortBy=position&limit={limit}&page={page}"
-            async with session.get(url) as resp:
-                data = await resp.json()
-                if not data["results"]:
-                    break
-                pets.extend(data["results"])
-                page += 1
-    # Сохраняем локально
-    with open(PETS_FILE, "w", encoding="utf-8") as f:
-        json.dump(pets, f, ensure_ascii=False, indent=2)
-    return pets
+URL = "https://adoptmevalues.gg/calculator"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+}
 
 async def load_all_pets():
-    """Обновляем всех питомцев"""
-    try:
-        return await fetch_all_pets()
-    except Exception as e:
-        print("Ошибка при загрузке питомцев:", e)
-        return []
+    global ALL_PETS
+    ALL_PETS = []
 
-async def get_pets():
-    """Возвращаем питомцев из локального файла"""
-    try:
-        with open(PETS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return await load_all_pets()
+    async with aiohttp.ClientSession(headers=HEADERS) as session:
+        async with session.get(URL) as resp:
+            html = await resp.text()
+
+    soup = BeautifulSoup(html, "lxml")
+
+    cards = soup.select("div.item-card")  # может отличаться
+
+    for card in cards:
+        try:
+            name = card.select_one(".item-name").text.strip()
+            value = card.select_one(".item-value").text.strip()
+
+            ALL_PETS.append({
+                "name": name,
+                "value": value
+            })
+        except:
+            continue
+
+    print(f"Загружено питомцев: {len(ALL_PETS)}")
