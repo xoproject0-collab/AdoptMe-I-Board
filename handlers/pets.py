@@ -15,52 +15,35 @@ async def load_all_pets():
     global ALL_PETS
     ALL_PETS.clear()
 
+    url = "https://adoptmevalues.gg/"
+
     headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json"
+        "User-Agent": "Mozilla/5.0"
     }
 
-    page = 1
+    import aiohttp
+    from bs4 import BeautifulSoup
 
-    async with aiohttp.ClientSession(headers=headers) as session:
-        while True:
-            url = API_URL + str(page)
+    try:
+        async with aiohttp.ClientSession(headers=headers) as session:
+            async with session.get(url) as resp:
+                html = await resp.text()
 
-            try:
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        print(f"Ошибка загрузки: HTTP {resp.status}")
-                        break
+        soup = BeautifulSoup(html, "lxml")
 
-                    data = await resp.json()
-                    pets = data.get("data", [])
+        cards = soup.find_all("div", class_="card")
 
-                    if not pets:
-                        break
+        for card in cards:
+            name = card.find("h3")
+            value = card.find("span")
 
-                    ALL_PETS.extend(pets)
-                    print(f"Страница {page} загружена ({len(pets)})")
+            if name:
+                ALL_PETS.append({
+                    "name": name.text.strip(),
+                    "value": value.text.strip() if value else "?"
+                })
 
-                    page += 1
+        print(f"Загружено питомцев: {len(ALL_PETS)}")
 
-            except Exception as e:
-                print("Ошибка при загрузке питомцев:", e)
-                break
-
-    print(f"Всего питомцев: {len(ALL_PETS)}")
-
-
-@router.message(Command("pets"))
-async def pets_command(message: Message):
-    if not ALL_PETS:
-        await message.answer("❌ Питомцы не загружены")
-        return
-
-    text = "🐾 Список питомцев:\n\n"
-
-    for pet in ALL_PETS[:20]:
-        text += f"• {pet.get('name')} ({pet.get('value', '?')})\n"
-
-    text += "\n...и еще много"
-
-    await message.answer(text)
+    except Exception as e:
+        print("Ошибка при загрузке питомцев:", e)
