@@ -1,102 +1,69 @@
 # pets.py
 import aiohttp
 import asyncio
-from aiogram import Router, F
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-
-router = Router()
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 API_URL = "https://adoptmevalues.gg/api/v1/values"
-PAGE_LIMIT = 20  # столько питомцев на странице
-MODIFIERS = ["Fly", "Ride", "Neon", "Mega Neon"]
+PAGE_LIMIT = 100  # сколько питомцев за раз загружаем
+UPDATE_INTERVAL = 600  # 10 минут
+ALL_PETS = {}  # здесь будем хранить всех питомцев
 
-# Хранение временного выбора питомцев по пользователям
-user_selection = {}
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+}
 
-# -------------------- Получение всех питомцев --------------------
-async def fetch_all_pets():
-    all_pets = []
-    page = 1
-    while True:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{API_URL}?sortBy=position&limit={PAGE_LIMIT}&page={page}") as resp:
+
+async def fetch_page(session, page: int):
+    """Загружаем одну страницу питомцев"""
+    try:
+        async with session.get(f"{API_URL}?sortBy=position&limit={PAGE_LIMIT}&page={page}", headers=headers) as resp:
+            if resp.status != 200:
+                print(f"Ошибка при загрузке страницы {page}: {resp.status}")
+                return []
+            try:
                 data = await resp.json()
-                pets = data.get("data", [])
-                if not pets:
-                    break
-                all_pets.extend(pets)
-                page += 1
-    return all_pets
+                return data.get("data", [])
+            except Exception as e:
+                print(f"Ошибка при разборе JSON страницы {page}: {e}")
+                return []
+    except Exception as e:
+        print(f"Ошибка запроса страницы {page}: {e}")
+        return []
 
-# -------------------- Клавиатура с питомцами --------------------
-def make_pet_keyboard(pets, user_id):
-    kb = InlineKeyboardMarkup(row_width=2)
-    for pet in pets:
-        kb.insert(
-            InlineKeyboardButton(
-                f"{pet['name']} ({pet['rarity']})",
-                callback_data=f"select_{user_id}_{pet['id']}"
-            )
-        )
-    # Кнопки модификаторов
-    mod_buttons = [InlineKeyboardButton(m, callback_data=f"mod_{user_id}_{m}") for m in MODIFIERS]
-    kb.add(*mod_buttons)
-    kb.add(InlineKeyboardButton("▶ Перейти к выбору что хочу получить", callback_data=f"next_{user_id}"))
-    return kb
 
-# -------------------- Начало выбора питомцев --------------------
-@router.callback_query(F.data.startswith("choose_pets"))
-async def choose_pets(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    user_selection[user_id] = {"give": [], "want": [], "current_mods": []}
-    pets = await fetch_all_pets()
-    user_selection[user_id]["all_pets"] = pets
-    kb = make_pet_keyboard(pets[:PAGE_LIMIT], user_id)
-    await callback.message.edit_text("Выберите питомцев, которых отдаёте:", reply_markup=kb)
+async def load_all_pets():
+    """Загружаем всех питомцев со всех страниц"""
+    global ALL_PETS
+    ALL_PETS = {}
+    page = 1
+    async with aiohttp.ClientSession() as session:
+        while True:
+            pets = await fetch_page(session, page)
+            if not pets:
+                break  # больше нет страниц
+            for pet in pets:
+                pet_id = pet.get("id")
+                if pet_id:
+                    ALL_PETS[pet_id] = pet
+            page += 1
+        print(f"✅ Загружено питомцев: {len(ALL_PETS)}")
 
-# -------------------- Выбор питомца --------------------
-@router.callback_query(F.data.startswith("select_"))
-async def select_pet(callback: CallbackQuery):
-    _, user_id_str, pet_id = callback.data.split("_")
-    user_id = int(user_id_str)
-    pets = user_selection[user_id]["all_pets"]
-    pet = next((p for p in pets if str(p["id"]) == pet_id), None)
-    if pet:
-        mods = user_selection[user_id]["current_mods"]
-        user_selection[user_id]["give"].append({"id": pet["name"], "mods": mods.copy()})
-        user_selection[user_id]["current_mods"].clear()
-        await callback.answer(f"Вы выбрали {pet['name']} с модификаторами: {', '.join(mods) if mods else 'нет'}")
 
-# -------------------- Выбор модификатора --------------------
-@router.callback_query(F.data.startswith("mod_"))
-async def select_modifier(callback: CallbackQuery):
-    _, user_id_str, mod = callback.data.split("_")
-    user_id = int(user_id_str)
-    if mod not in user_selection[user_id]["current_mods"]:
-        user_selection[user_id]["current_mods"].append(mod)
-    await callback.answer(f"Модификатор {mod} добавлен")
+def start_auto_update():
+    """Запускаем автообновление каждые 10 минут"""
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(load_all_pets, "interval", seconds=UPDATE_INTERVAL)
+    scheduler.start()
 
-# -------------------- Переход к выбору что получаем --------------------
-@router.callback_query(F.data.startswith("next_"))
-async def next_step(callback: CallbackQuery):
-    user_id = int(callback.data.split("_")[1])
-    await callback.message.edit_text(
-        "Теперь выберите питомцев, которых хотите получить (работает так же, как отдаёте).",
-        reply_markup=make_pet_keyboard(user_selection[user_id]["all_pets"][:PAGE_LIMIT], user_id)
-    )
-    # Следующие клики будут добавлять в user_selection[user_id]["want"]
 
-# -------------------- Публикация трейда --------------------
-@router.callback_query(F.data.startswith("publish_"))
-async def publish_trade_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    give = user_selection[user_id]["give"]
-    want = user_selection[user_id]["want"]
-    if not give or not want:
-        await callback.answer("Вы должны выбрать хотя бы одного питомца для отдачи и получения!")
-        return
-    from handlers import trade
-    trade_id = trade.publish_trade(user_id, give, want)
-    await callback.message.edit_text(f"Трейд опубликован! ID: {trade_id}")
-    # очищаем временный выбор
-    user_selection[user_id] = {"give": [], "want": [], "current_mods": []}
+# Для старта при импорте
+async def init():
+    await load_all_pets()
+    start_auto_update()
+
+
+# Пример запуска вручную, если нужно для теста
+if __name__ == "__main__":
+    asyncio.run(init())
