@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher
 from handlers import start, trade
 import handlers.pets as pets  # сервис для питомцев
 
-BOT_TOKEN = "YOUR_TOKEN_HERE"
+BOT_TOKEN = "8585113754:AAEuFxy-rHCCAvvxOdLcCtKej5g82MvLU1E"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
