@@ -3,7 +3,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
 from handlers import start, trade, pets
 
-API_TOKEN = "ВАШ_ТОКЕН_БОТА"
+API_TOKEN = "8585113754:AAEuFxy-rHCCAvvxOdLcCtKej5g82MvLU1E"
 
 async def main():
     bot = Bot(token=API_TOKEN)
