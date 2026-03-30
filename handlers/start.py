@@ -1,13 +1,9 @@
 from aiogram import Router
-from aiogram.filters import Command, Text
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message
+from keyboards.main_keyboard import main_menu
 
 router = Router()
 
-@router.message(Command("start"))
-async def start_handler(message: Message):
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add(KeyboardButton("Создать трейд"))
-    kb.add(KeyboardButton("Смотреть трейды"))
-
-    await message.answer("Привет! Выбери действие:", reply_markup=kb)
+@router.message()
+async def cmd_start(message: Message):
+    await message.answer("Привет! Добро пожаловать в Adopt Me трейдер бот 🚀", reply_markup=main_menu())
