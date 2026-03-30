@@ -8,12 +8,10 @@ async def main():
     bot = Bot(token=API_TOKEN)
     dp = Dispatcher()
 
-    # Подключаем старые роутеры
-    dp.include_router(start.router)
-    dp.include_router(trade.router)
+from handlers import start, trade
 
-    # Подключаем новый pets роутер
-    dp.include_router(pets.router)
+dp.include_router(start.router)
+dp.include_router(trade.router)
 
     # Загружаем всех питомцев перед стартом
     await pets.load_all_pets()
