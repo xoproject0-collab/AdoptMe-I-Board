@@ -7,4 +7,4 @@ beautifulsoup4==4.14.3
 lxml==6.0.2
 magic-filter==1.0.12
 httpx==0.28.1
-certifi==2026.3.29
+certifi==2025.11.12
