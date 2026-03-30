@@ -1,5 +1,5 @@
 from aiogram import Router
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart
 
 router = Router()
@@ -7,18 +7,12 @@ router = Router()
 @router.message(CommandStart())
 async def start_handler(message: Message):
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="📊 Смотреть трейды")],
-            [KeyboardButton(text="➕ Создать трейд")],
-            [KeyboardButton(text="📂 Мои трейды")]
-        ],
-        resize_keyboard=True
-    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Начать", callback_data="create_trade")],
+        [InlineKeyboardButton(text="📊 Смотреть трейды", callback_data="watch_trades")]
+    ])
 
     await message.answer(
-        "🚀 Добро пожаловать в Adopt Me Trade Bot!\n\n"
-        "Выбирай действие:",
+        "🔥 Adopt Me Trade Bot\n\nВыбирай действие:",
         reply_markup=kb
     )
-    
