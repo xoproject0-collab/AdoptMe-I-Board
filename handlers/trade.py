@@ -1,82 +1,68 @@
 # trade.py
-import json
-import uuid
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from handlers.pets import ALL_PETS  # новый pets.py
 
-router = Router()
+router = Router()  # 🔹 создаём router для trade
 
-TRADES_FILE = "data/trades.json"  # файл для хранения всех трейдов пользователей
+# ----------------------
+# Inline кнопки для трейда
+# ----------------------
 
-# -------------------- Вспомогательные функции --------------------
-def load_trades():
-    try:
-        with open(TRADES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return []
-
-def save_trades(trades):
-    with open(TRADES_FILE, "w", encoding="utf-8") as f:
-        json.dump(trades, f, ensure_ascii=False, indent=2)
-
-def format_trade(trade):
-    give_list = ", ".join([f'{p["id"]}({" ".join(p["mods"])})' for p in trade["give"]])
-    want_list = ", ".join([f'{p["id"]}({" ".join(p["mods"])})' for p in trade["want"]])
-    return f"🔹 {trade['trade_id']}\nДаю: {give_list}\nХочу: {want_list}\n"
-
-# -------------------- Создание трейда --------------------
-@router.callback_query(F.data == "create_trade")
-async def create_trade_start(callback: CallbackQuery):
-    # Тут вызываем pets.py для выбора питомцев, например:
-    await callback.message.edit_text(
-        "Начинаем создание трейда!\nВыберите питомцев, которых отдаёте через кнопки.\nПосле выбора питомцев перейдите к выбору того, что хотите получить.",
-    )
-    # pets.py должен вызвать publish_trade после выбора питомцев
-
-# -------------------- Публикация трейда --------------------
-def publish_trade(user_id, give, want):
-    trades = load_trades()
-    trade_id = str(uuid.uuid4())[:8]  # уникальный id
-    trades.append({
-        "user_id": user_id,
-        "give": give,
-        "want": want,
-        "trade_id": trade_id
-    })
-    save_trades(trades)
-    return trade_id
-
-# -------------------- Просмотр своих трейдов --------------------
-@router.callback_query(F.data == "my_trades")
-async def my_trades(callback: CallbackQuery):
-    trades = load_trades()
-    user_trades = [t for t in trades if t["user_id"] == callback.from_user.id]
-    if not user_trades:
-        await callback.message.answer("У тебя пока нет трейдов.")
+@router.message(F.text == "/trade")
+async def start_trade(message: Message):
+    if not ALL_PETS:
+        await message.answer("Питомцы ещё загружаются, подождите...")
         return
+    kb = InlineKeyboardMarkup(row_width=2)
+    for pet in list(ALL_PETS.values())[:10]:
+        kb.add(InlineKeyboardButton(pet["name"], callback_data=f"trade_pet_{pet['id']}"))
+    await message.answer("Выберите питомца для трейда:", reply_markup=kb)
 
-    for t in user_trades:
-        text = format_trade(t)
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton("❌ Удалить трейд", callback_data=f"delete_{t['trade_id']}")]
-        ])
-        await callback.message.answer(text, reply_markup=kb)
 
-# -------------------- Удаление трейда --------------------
-@router.callback_query(F.data.startswith("delete_"))
-async def delete_trade_callback(callback: CallbackQuery):
-    trade_id = callback.data.split("_")[1]
-    trades = load_trades()
-    trades = [t for t in trades if not (t["user_id"] == callback.from_user.id and t["trade_id"] == trade_id)]
-    save_trades(trades)
-    await callback.message.answer(f"Трейд {trade_id} успешно удалён!")
+@router.callback_query(F.data.startswith("trade_pet_"))
+async def select_trade_pet(call: CallbackQuery):
+    pet_id = call.data.split("_")[2]
+    pet = ALL_PETS.get(pet_id)
+    if not pet:
+        await call.answer("Питомец не найден 😢")
+        return
+    # Кнопки для модификаторов
+    kb = InlineKeyboardMarkup(row_width=2)
+    for mod in ["Fly", "Ride", "Neon", "Mega Neon"]:
+        kb.add(InlineKeyboardButton(mod, callback_data=f"trade_mod_{pet_id}_{mod}"))
+    await call.message.edit_text(f"Вы выбрали {pet['name']}\nЦена: {pet.get('value','—')}", reply_markup=kb)
 
-# -------------------- Авто форматирование для ленты --------------------
-def get_all_trades_for_feed():
-    trades = load_trades()
-    feed_list = []
-    for t in trades:
-        text = format_trade(t)
-        feed_list.append(text)
-    return feed_list
+
+@router.callback_query(F.data.startswith("trade_mod_"))
+async def apply_trade_mod(call: CallbackQuery):
+    parts = call.data.split("_")
+    pet_id, mod = parts[2], parts[3]
+    pet = ALL_PETS.get(pet_id)
+    if not pet:
+        await call.answer("Питомец не найден 😢")
+        return
+    # Сохраняем модификаторы для трейда
+    trade_mods = pet.get("trade_mods", set())
+    trade_mods.add(mod)
+    pet["trade_mods"] = trade_mods
+    await call.answer(f"{pet['name']} теперь с модификаторами: {', '.join(trade_mods)}")
+
+
+# ----------------------
+# Авто подсчёт профита/лосса
+# ----------------------
+@router.message(F.text == "/profit")
+async def show_profit(message: Message):
+    total_profit = 0
+    total_loss = 0
+    for pet in ALL_PETS.values():
+        value = pet.get("value", 0)
+        trade_mods = pet.get("trade_mods", set())
+        # Примерная логика подсчёта: каждый модификатор +10%
+        value_mod = value
+        for mod in trade_mods:
+            value_mod *= 1.1
+        total_profit += value_mod
+        total_loss += value  # без модификаторов
+    await message.answer(f"💰 Total Profit: {total_profit}\n📉 Total Loss: {total_loss}")
